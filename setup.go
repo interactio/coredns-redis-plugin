@@ -3,7 +3,7 @@ package redis
 import (
 	"strconv"
 
-	"github.com/caddyserver/caddy"
+	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
 )
@@ -30,13 +30,13 @@ func setup(c *caddy.Controller) error {
 }
 
 func redisParse(c *caddy.Controller) (*Redis, error) {
-	redis := Redis {
-		keyPrefix:"",
-		keySuffix:"",
-		Ttl:300,
+	redis := Redis{
+		keyPrefix: "",
+		keySuffix: "",
+		Ttl:       300,
 	}
 	var (
-		err            error
+		err error
 	)
 
 	for c.Next() {
@@ -77,7 +77,7 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					}
 					redis.readTimeout, err = strconv.Atoi(c.Val())
 					if err != nil {
-						redis.readTimeout = 0;
+						redis.readTimeout = 0
 					}
 				case "ttl":
 					if !c.NextArg() {
@@ -89,6 +89,22 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 						val = defaultTtl
 					}
 					redis.Ttl = uint32(val)
+				case "use_tls":
+					if !c.NextArg() {
+						return &Redis{}, c.ArgErr()
+					}
+					redis.useTls, err = strconv.ParseBool(c.Val())
+					if err != nil {
+						redis.useTls = true
+					}
+				case "tls_skip_verify":
+					if !c.NextArg() {
+						return &Redis{}, c.ArgErr()
+					}
+					redis.tlsSkipVerify, err = strconv.ParseBool(c.Val())
+					if err != nil {
+						redis.tlsSkipVerify = true
+					}
 				default:
 					if c.Val() != "}" {
 						return &Redis{}, c.Errf("unknown property '%s'", c.Val())
