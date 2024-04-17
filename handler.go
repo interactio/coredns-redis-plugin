@@ -25,7 +25,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	zone := plugin.Zones(redis.Zones).Matches(qname)
-	fmt.Println("zone : ", zone)
 	if zone == "" {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -33,7 +32,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	z := redis.load(zone)
 	fmt.Println("z : ", z)
 	if z == nil {
-		return redis.errorResponse(state, zone, dns.RcodeServerFailure, nil)
+		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
 	if qtype == "AXFR" {
@@ -71,13 +70,16 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	location := redis.findLocation(qname, z)
 	fmt.Println("location : ", location)
 	if len(location) == 0 { // empty, no results
-		return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
+		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
 	answers := make([]dns.RR, 0, 10)
 	extras := make([]dns.RR, 0, 10)
 
 	record := redis.get(location, z)
+	if record == nil {
+		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
+	}
 	fmt.Println("record : ", record)
 
 	switch qtype {
@@ -101,7 +103,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		answers, extras = redis.CAA(qname, z, record)
 
 	default:
-		return redis.errorResponse(state, zone, dns.RcodeNotImplemented, nil)
+		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
 	m := new(dns.Msg)
