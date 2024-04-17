@@ -69,6 +69,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	location := redis.findLocation(qname, z)
+	fmt.Println("location : ", location)
 	if len(location) == 0 { // empty, no results
 		return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
 	}
@@ -77,6 +78,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	extras := make([]dns.RR, 0, 10)
 
 	record := redis.get(location, z)
+	fmt.Println("record : ", record)
 
 	switch qtype {
 	case "A":
@@ -112,6 +114,9 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
 	_ = w.WriteMsg(m)
+
+	fmt.Println("m : ", m)
+
 	return dns.RcodeSuccess, nil
 }
 
