@@ -16,9 +16,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()
-	fmt.Println("qname : ", qname)
 	qtype := state.Type()
-	fmt.Println("qtype : ", qtype)
 
 	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 		redis.LoadZones()
@@ -30,7 +28,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	z := redis.load(zone)
-	fmt.Println("z : ", z)
 	if z == nil {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -68,7 +65,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	location := redis.findLocation(qname, z)
-	fmt.Println("location : ", location)
 	if len(location) == 0 { // empty, no results
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -80,7 +76,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	if record == nil {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
-	fmt.Println("record : ", record)
 
 	switch qtype {
 	case "A":
@@ -116,8 +111,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
 	_ = w.WriteMsg(m)
-
-	fmt.Println("m : ", m)
 
 	return dns.RcodeSuccess, nil
 }
