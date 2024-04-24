@@ -16,6 +16,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()
+	fmt.Println("qname: ", qname)
 	qtype := state.Type()
 
 	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
