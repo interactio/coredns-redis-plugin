@@ -35,11 +35,13 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	zone := plugin.Zones(redis.Zones).Matches(qname)
+	fmt.Println("zone : ", zone)
 	if zone == "" {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
 	z := redis.load(zone)
+	fmt.Println("z : ", z)
 	if z == nil {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -77,6 +79,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	location := redis.findLocation(qname, z)
+	fmt.Println("location : ", location)
 	if len(location) == 0 { // empty, no results
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -85,6 +88,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	extras := make([]dns.RR, 0, 10)
 
 	record := redis.get(location, z)
+	fmt.Println("record : ", record)
 	if record == nil {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -119,6 +123,8 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	m.Answer = append(m.Answer, answers...)
 	m.Extra = append(m.Extra, extras...)
+
+	fmt.Println("answer : ", m.Answer)
 
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
