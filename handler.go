@@ -3,6 +3,8 @@ package redis
 import (
 	"fmt"
 	"regexp"
+	"strings"
+
 	// "fmt"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"golang.org/x/net/context"
 )
 
+var pattern = regexp.MustCompile(`-.*`)
+
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
@@ -19,13 +23,12 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	qname := state.Name()
 	fmt.Println("qname: ", qname)
 
-	// Define the regular expression pattern
-	pattern := regexp.MustCompile(`^[^-]*-`)
+	parts := strings.Split(qname, ".")
+	parts[0] = pattern.ReplaceAllString(parts[0], "")
 
-	// Replace the matched pattern with an empty string
-	qname = pattern.ReplaceAllString(qname, "")
+	qname = strings.Join(parts, ".")
+
 	fmt.Println("new qname: ", qname)
-
 	qtype := state.Type()
 
 	fmt.Println("qtype: ", qtype)
