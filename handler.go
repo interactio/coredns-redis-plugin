@@ -25,7 +25,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	parts := strings.Split(qname, ".")
 	parts[0] = pattern.ReplaceAllString(parts[0], "")
 
-	qname = strings.Join(parts, ".")
+	trimmedName := strings.Join(parts, ".")
 	fmt.Println("new qname : ", qname)
 
 	qtype := state.Type()
@@ -78,7 +78,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		return dns.RcodeSuccess, nil
 	}
 
-	location := redis.findLocation(qname, z)
+	location := redis.findLocation(trimmedName, z)
 	fmt.Println("location : ", location)
 	if len(location) == 0 { // empty, no results
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
