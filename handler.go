@@ -26,6 +26,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	parts[0] = pattern.ReplaceAllString(parts[0], "")
 
 	qname = strings.Join(parts, ".")
+	fmt.Println("new qname : ", qname)
 
 	qtype := state.Type()
 
