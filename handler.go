@@ -21,29 +21,24 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()
-	fmt.Println("qname: ", qname)
 
 	parts := strings.Split(qname, ".")
 	parts[0] = pattern.ReplaceAllString(parts[0], "")
 
 	qname = strings.Join(parts, ".")
 
-	fmt.Println("new qname: ", qname)
 	qtype := state.Type()
 
-	fmt.Println("qtype: ", qtype)
 	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 		redis.LoadZones()
 	}
 
 	zone := plugin.Zones(redis.Zones).Matches(qname)
-	fmt.Println("zone: ", zone)
 	if zone == "" {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
 	z := redis.load(zone)
-	fmt.Println("z: ", z)
 	if z == nil {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -81,7 +76,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	location := redis.findLocation(qname, z)
-	fmt.Println("location: ", location)
 	if len(location) == 0 { // empty, no results
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -90,7 +84,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	extras := make([]dns.RR, 0, 10)
 
 	record := redis.get(location, z)
-	fmt.Println("record: ", record)
 	if record == nil {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
