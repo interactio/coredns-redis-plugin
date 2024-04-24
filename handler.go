@@ -29,17 +29,21 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	qtype := state.Type()
 
+	fmt.Println("qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName)
+
 	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 		redis.LoadZones()
 	}
 
 	zone := plugin.Zones(redis.Zones).Matches(qname)
 	if zone == "" {
+		fmt.Println("zone err [empty]")
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
 	z := redis.load(zone)
 	if z == nil {
+		fmt.Println("z err [nil]")
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
@@ -76,7 +80,9 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	}
 
 	location := redis.findLocation(trimmedName, z)
+	fmt.Println("location: ", location)
 	if len(location) == 0 { // empty, no results
+		fmt.Println("location err [0]")
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
@@ -84,7 +90,9 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	extras := make([]dns.RR, 0, 10)
 
 	record := redis.get(location, z)
+	fmt.Println("record: ", record)
 	if record == nil {
+		fmt.Println("record err [nil]")
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
@@ -109,6 +117,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		answers, extras = redis.CAA(qname, z, record)
 
 	default:
+		fmt.Println("default case [next]")
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
