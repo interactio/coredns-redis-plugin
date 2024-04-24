@@ -2,8 +2,7 @@ package redis
 
 import (
 	"fmt"
-	"strings"
-
+	"regexp"
 	// "fmt"
 	"time"
 
@@ -20,12 +19,13 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	qname := state.Name()
 	fmt.Println("qname: ", qname)
 
-	stringSlice := strings.Split(qname, "-")
-	fmt.Println("stringSlice: ", stringSlice)
-	// 1546546-asdf.media.dev
-	// asdf-1546546.media.dev
+	// Define the regular expression pattern
+	pattern := regexp.MustCompile(`^[^-]*-`)
 
-	// stringSlice[1]
+	// Replace the matched pattern with an empty string
+	qname = pattern.ReplaceAllString(qname, "")
+	fmt.Println("new qname: ", qname)
+
 	qtype := state.Type()
 
 	fmt.Println("qtype: ", qtype)
