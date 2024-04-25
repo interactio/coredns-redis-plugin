@@ -1,7 +1,6 @@
 package redis
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/coredns/caddy"
@@ -19,7 +18,6 @@ func init() {
 func setup(c *caddy.Controller) error {
 	r, err := redisParse(c)
 	if err != nil {
-		fmt.Println("setup redis parse error: ", err)
 		return plugin.Error("redis", err)
 	}
 
@@ -71,7 +69,6 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					}
 					redis.connectTimeout, err = strconv.Atoi(c.Val())
 					if err != nil {
-						fmt.Println("connect_timeout err: ", err)
 						redis.connectTimeout = 0
 					}
 				case "read_timeout":
@@ -80,7 +77,6 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					}
 					redis.readTimeout, err = strconv.Atoi(c.Val())
 					if err != nil {
-						fmt.Println("read_timeout err: ", err)
 						redis.readTimeout = 0
 					}
 				case "ttl":
@@ -90,7 +86,6 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					var val int
 					val, err = strconv.Atoi(c.Val())
 					if err != nil {
-						fmt.Println("ttl err", err)
 						val = defaultTtl
 					}
 					redis.Ttl = uint32(val)
@@ -100,7 +95,6 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					}
 					redis.useTls, err = strconv.ParseBool(c.Val())
 					if err != nil {
-						fmt.Println("use_tls err", err)
 						redis.useTls = true
 					}
 				case "tls_skip_verify":
@@ -109,12 +103,10 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					}
 					redis.tlsSkipVerify, err = strconv.ParseBool(c.Val())
 					if err != nil {
-						fmt.Println("skipverify err", err)
 						redis.tlsSkipVerify = true
 					}
 				default:
 					if c.Val() != "}" {
-						fmt.Println("unknown property: ", c.Val())
 						return &Redis{}, c.Errf("unknown property '%s'", c.Val())
 					}
 				}
