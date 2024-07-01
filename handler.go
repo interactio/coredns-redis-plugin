@@ -2,6 +2,7 @@ package redis
 
 import (
 	"fmt"
+	"github.com/patrickmn/go-cache"
 	"regexp"
 	"strings"
 
@@ -16,6 +17,8 @@ import (
 
 var pattern = regexp.MustCompile(`-.*`)
 
+var c = cache.New(2*time.Minute, 10*time.Minute)
+
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
@@ -29,102 +32,117 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	qtype := state.Type()
 
-	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
-		redis.LoadZones()
-	}
-
-	zone := plugin.Zones(redis.Zones).Matches(qname)
-	if zone == "" {
-		fmt.Println("zone err [empty] NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone)
-		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
-	}
-
-	z := redis.load(zone)
-	if z == nil {
-		fmt.Println("z err [nil] NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z)
-		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
-	}
-
-	if qtype == "AXFR" {
-		records := redis.AXFR(z)
-
-		ch := make(chan *dns.Envelope)
-		tr := new(dns.Transfer)
-		tr.TsigSecret = nil
-
-		go func(ch chan *dns.Envelope) {
-			j, l := 0, 0
-
-			for i, r := range records {
-				l += dns.Len(r)
-				if l > transferLength {
-					ch <- &dns.Envelope{RR: records[j:i]}
-					l = 0
-					j = i
-				}
-			}
-			if j < len(records) {
-				ch <- &dns.Envelope{RR: records[j:]}
-			}
-			close(ch)
-		}(ch)
-
-		err := tr.Out(w, r, ch)
-		if err != nil {
-			fmt.Println(err)
-		}
-		w.Hijack()
-		return dns.RcodeSuccess, nil
-	}
-
-	location := redis.findLocation(trimmedName, z)
-	if len(location) == 0 { // empty, no results
-		fmt.Println("LOCATION ERR [0], NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location)
-		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
-	}
-
-	answers := make([]dns.RR, 0, 10)
-	extras := make([]dns.RR, 0, 10)
-
-	record := redis.get(location, z)
-	if record == nil {
-		fmt.Println("RECORD ERR [nil], NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location, "record: ", record)
-		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
-	}
-
-	switch qtype {
-	case "A":
-		answers, extras = redis.A(qname, z, record)
-	case "AAAA":
-		answers, extras = redis.AAAA(qname, z, record)
-	case "CNAME":
-		answers, extras = redis.CNAME(qname, z, record)
-	case "TXT":
-		answers, extras = redis.TXT(qname, z, record)
-	case "NS":
-		answers, extras = redis.NS(qname, z, record)
-	case "MX":
-		answers, extras = redis.MX(qname, z, record)
-	case "SRV":
-		answers, extras = redis.SRV(qname, z, record)
-	case "SOA":
-		answers, extras = redis.SOA(qname, z, record)
-	case "CAA":
-		answers, extras = redis.CAA(qname, z, record)
-
-	default:
-		fmt.Println("DEFAULT CASE, NOERROR. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location, "record: ", record)
-	}
+	cacheKey := fmt.Sprintf("%s-%s", qtype, trimmedName)
 
 	m := new(dns.Msg)
+
+	msg, found := c.Get(cacheKey)
+	if found {
+		fmt.Println("cache hit: ", cacheKey)
+
+		m = msg.(*dns.Msg)
+	} else {
+		fmt.Println("cache miss: ", cacheKey)
+
+		if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
+			redis.LoadZones()
+		}
+
+		zone := plugin.Zones(redis.Zones).Matches(qname)
+		if zone == "" {
+			fmt.Println("zone err [empty] NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone)
+			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
+		}
+
+		z := redis.load(zone)
+		if z == nil {
+			fmt.Println("z err [nil] NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z)
+			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
+		}
+
+		if qtype == "AXFR" {
+			records := redis.AXFR(z)
+
+			ch := make(chan *dns.Envelope)
+			tr := new(dns.Transfer)
+			tr.TsigSecret = nil
+
+			go func(ch chan *dns.Envelope) {
+				j, l := 0, 0
+
+				for i, r := range records {
+					l += dns.Len(r)
+					if l > transferLength {
+						ch <- &dns.Envelope{RR: records[j:i]}
+						l = 0
+						j = i
+					}
+				}
+				if j < len(records) {
+					ch <- &dns.Envelope{RR: records[j:]}
+				}
+				close(ch)
+			}(ch)
+
+			err := tr.Out(w, r, ch)
+			if err != nil {
+				fmt.Println(err)
+			}
+			w.Hijack()
+			return dns.RcodeSuccess, nil
+		}
+
+		location := redis.findLocation(trimmedName, z)
+		if len(location) == 0 { // empty, no results
+			fmt.Println("LOCATION ERR [0], NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location)
+			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
+		}
+
+		answers := make([]dns.RR, 0, 10)
+		extras := make([]dns.RR, 0, 10)
+
+		record := redis.get(location, z)
+		if record == nil {
+			fmt.Println("RECORD ERR [nil], NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location, "record: ", record)
+			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
+		}
+
+		switch qtype {
+		case "A":
+			answers, extras = redis.A(qname, z, record)
+		case "AAAA":
+			answers, extras = redis.AAAA(qname, z, record)
+		case "CNAME":
+			answers, extras = redis.CNAME(qname, z, record)
+		case "TXT":
+			answers, extras = redis.TXT(qname, z, record)
+		case "NS":
+			answers, extras = redis.NS(qname, z, record)
+		case "MX":
+			answers, extras = redis.MX(qname, z, record)
+		case "SRV":
+			answers, extras = redis.SRV(qname, z, record)
+		case "SOA":
+			answers, extras = redis.SOA(qname, z, record)
+		case "CAA":
+			answers, extras = redis.CAA(qname, z, record)
+
+		default:
+			fmt.Println("DEFAULT CASE, NOERROR. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location, "record: ", record)
+		}
+
+		m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
+
+		m.Answer = append(m.Answer, answers...)
+		m.Extra = append(m.Extra, extras...)
+
+		state.SizeAndDo(m)
+		m = state.Scrub(m)
+
+		c.Set(cacheKey, m, cache.DefaultExpiration)
+	}
+
 	m.SetReply(r)
-	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
-
-	m.Answer = append(m.Answer, answers...)
-	m.Extra = append(m.Extra, extras...)
-
-	state.SizeAndDo(m)
-	m = state.Scrub(m)
 	_ = w.WriteMsg(m)
 
 	return dns.RcodeSuccess, nil
