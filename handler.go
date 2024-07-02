@@ -17,8 +17,6 @@ import (
 
 var pattern = regexp.MustCompile(`-.*`)
 
-var c = cache.New(2*time.Minute, 10*time.Minute)
-
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
@@ -36,7 +34,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	m := new(dns.Msg)
 
-	msg, found := c.Get(cacheKey)
+	msg, found := redis.Cache.Get(cacheKey)
 	if found {
 		fmt.Println("cache hit: ", cacheKey)
 
@@ -139,7 +137,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		state.SizeAndDo(m)
 		m = state.Scrub(m)
 
-		c.Set(cacheKey, m, cache.DefaultExpiration)
+		redis.Cache.Set(cacheKey, m, cache.DefaultExpiration)
 	}
 
 	m.SetReply(r)
