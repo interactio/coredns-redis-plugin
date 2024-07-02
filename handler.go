@@ -27,20 +27,20 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	parts[0] = pattern.ReplaceAllString(parts[0], "")
 
 	trimmedName := strings.Join(parts, ".")
+	cacheKey := trimmedName
 
 	qtype := state.Type()
 
-	cacheKey := fmt.Sprintf("%s-%s", qtype, trimmedName)
+	var record *Record
 
-	m := new(dns.Msg)
-
-	msg, found := redis.Cache.Get(cacheKey)
+	rec, found := redis.Cache.Get(cacheKey)
 	if found {
-		fmt.Println("cache hit: ", cacheKey)
+		fmt.Println("Cache hit: ", cacheKey)
 
-		m = msg.(*dns.Msg)
+		record = rec.(*Record)
+
 	} else {
-		fmt.Println("cache miss: ", cacheKey)
+		fmt.Println("Cache miss: ", cacheKey)
 
 		if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 			redis.LoadZones()
@@ -96,49 +96,53 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 		}
 
-		answers := make([]dns.RR, 0, 10)
-		extras := make([]dns.RR, 0, 10)
-
-		record := redis.get(location, z)
+		record = redis.get(location, z)
 		if record == nil {
 			fmt.Println("RECORD ERR [nil], NextOrFailure. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location, "record: ", record)
 			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 		}
 
-		switch qtype {
-		case "A":
-			answers, extras = redis.A(qname, z, record)
-		case "AAAA":
-			answers, extras = redis.AAAA(qname, z, record)
-		case "CNAME":
-			answers, extras = redis.CNAME(qname, z, record)
-		case "TXT":
-			answers, extras = redis.TXT(qname, z, record)
-		case "NS":
-			answers, extras = redis.NS(qname, z, record)
-		case "MX":
-			answers, extras = redis.MX(qname, z, record)
-		case "SRV":
-			answers, extras = redis.SRV(qname, z, record)
-		case "SOA":
-			answers, extras = redis.SOA(qname, z, record)
-		case "CAA":
-			answers, extras = redis.CAA(qname, z, record)
+		record.z = z
 
-		default:
-			fmt.Println("DEFAULT CASE, NOERROR. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", zone, "z: ", z, "location: ", location, "record: ", record)
-		}
-
-		m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
-
-		m.Answer = append(m.Answer, answers...)
-		m.Extra = append(m.Extra, extras...)
-
-		state.SizeAndDo(m)
-		m = state.Scrub(m)
-
-		redis.Cache.Set(cacheKey, m, cache.DefaultExpiration)
+		redis.Cache.Set(cacheKey, record, cache.DefaultExpiration)
 	}
+
+	answers := make([]dns.RR, 0, 10)
+	extras := make([]dns.RR, 0, 10)
+
+	switch qtype {
+	case "A":
+		answers, extras = redis.A(qname, record.z, record)
+	case "AAAA":
+		answers, extras = redis.AAAA(qname, record.z, record)
+	case "CNAME":
+		answers, extras = redis.CNAME(qname, record.z, record)
+	case "TXT":
+		answers, extras = redis.TXT(qname, record.z, record)
+	case "NS":
+		answers, extras = redis.NS(qname, record.z, record)
+	case "MX":
+		answers, extras = redis.MX(qname, record.z, record)
+	case "SRV":
+		answers, extras = redis.SRV(qname, record.z, record)
+	case "SOA":
+		answers, extras = redis.SOA(qname, record.z, record)
+	case "CAA":
+		answers, extras = redis.CAA(qname, record.z, record)
+
+	default:
+		fmt.Println("DEFAULT CASE, NOERROR. ", "qname: ", qname, "qtype: ", qtype, "trimmedName: ", trimmedName, "zone: ", "record: ", record)
+	}
+
+	m := new(dns.Msg)
+
+	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
+
+	m.Answer = append(m.Answer, answers...)
+	m.Extra = append(m.Extra, extras...)
+
+	state.SizeAndDo(m)
+	m = state.Scrub(m)
 
 	m.SetReply(r)
 	_ = w.WriteMsg(m)
