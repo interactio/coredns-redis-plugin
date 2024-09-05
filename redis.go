@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/miekg/dns"
+	"github.com/patrickmn/go-cache"
 	"strings"
 	"time"
 
 	"github.com/coredns/coredns/plugin"
-
 	redisCon "github.com/gomodule/redigo/redis"
 )
 
@@ -26,6 +26,7 @@ type Redis struct {
 	tlsSkipVerify  bool
 	Zones          []string
 	LastZoneUpdate time.Time
+	Cache          *cache.Cache
 }
 
 func (redis *Redis) LoadZones() {

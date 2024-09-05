@@ -2,10 +2,13 @@ package redis
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
+
+	"github.com/patrickmn/go-cache"
 )
 
 func init() {
@@ -34,6 +37,7 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 		keyPrefix: "",
 		keySuffix: "",
 		Ttl:       300,
+		Cache:     cache.New(5*time.Minute, 10*time.Minute),
 	}
 	var (
 		err error
