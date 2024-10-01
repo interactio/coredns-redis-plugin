@@ -411,6 +411,10 @@ func splitQuery(query string) (string, string, bool) {
 
 func (redis *Redis) Connect() {
 	redis.Pool = &redisCon.Pool{
+		MaxActive:   1000,
+		MaxIdle:     500,
+		Wait:        true,
+		IdleTimeout: 240 * time.Second,
 		Dial: func() (redisCon.Conn, error) {
 			opts := []redisCon.DialOption{}
 			if redis.redisPassword != "" {

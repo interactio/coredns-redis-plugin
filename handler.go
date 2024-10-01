@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	// "fmt"
 	"time"
 
 	"github.com/coredns/coredns/plugin"
@@ -20,6 +19,8 @@ var pattern = regexp.MustCompile(`-.*`)
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
+
+	fmt.Println(redis.Cache.Items())
 
 	qname := state.Name()
 
@@ -37,10 +38,24 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	if found {
 		fmt.Println("Cache hit: ", cacheKey)
 
+		fmt.Printf("REC: %T \n", rec)
+
+		if rec == (*Record)(nil) {
+			fmt.Println("REC IS NULL:")
+			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
+		}
+
 		record = rec.(*Record)
+		fmt.Printf("RECORD: %T \n", record)
+		fmt.Println(record)
 
 	} else {
 		fmt.Println("Cache miss: ", cacheKey)
+
+		defer func() {
+			redis.Cache.Set(cacheKey, record, cache.DefaultExpiration)
+			fmt.Println("DEFER: ", cacheKey, record)
+		}()
 
 		if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 			redis.LoadZones()
@@ -103,8 +118,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		}
 
 		record.z = z
-
-		redis.Cache.Set(cacheKey, record, cache.DefaultExpiration)
 	}
 
 	answers := make([]dns.RR, 0, 10)
@@ -144,6 +157,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
 
+	// sets ID
 	m.SetReply(r)
 	_ = w.WriteMsg(m)
 
