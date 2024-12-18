@@ -2,6 +2,7 @@ package redis
 
 import (
 	"fmt"
+	"github.com/patrickmn/go-cache"
 	"regexp"
 	"strings"
 
@@ -59,35 +60,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 		if qtype == "AXFR" {
 			return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
-			//records := redis.AXFR(z)
-			//
-			//ch := make(chan *dns.Envelope)
-			//tr := new(dns.Transfer)
-			//tr.TsigSecret = nil
-			//
-			//go func(ch chan *dns.Envelope) {
-			//	j, l := 0, 0
-			//
-			//	for i, r := range records {
-			//		l += dns.Len(r)
-			//		if l > transferLength {
-			//			ch <- &dns.Envelope{RR: records[j:i]}
-			//			l = 0
-			//			j = i
-			//		}
-			//	}
-			//	if j < len(records) {
-			//		ch <- &dns.Envelope{RR: records[j:]}
-			//	}
-			//	close(ch)
-			//}(ch)
-			//
-			//err := tr.Out(w, r, ch)
-			//if err != nil {
-			//	fmt.Println(err)
-			//}
-			//w.Hijack()
-			//return dns.RcodeSuccess, nil
 		}
 
 		location := redis.findLocation(trimmedName, z)
