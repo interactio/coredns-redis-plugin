@@ -2,6 +2,7 @@ package redis
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/patrickmn/go-cache"
 	"regexp"
 	"strings"
@@ -24,7 +25,11 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	qname := state.Name()
 
 	parts := strings.Split(qname, ".")
-	parts[0] = pattern.ReplaceAllString(parts[0], "")
+
+	_, e := uuid.Parse(parts[0])
+	if e != nil {
+		parts[0] = pattern.ReplaceAllString(parts[0], "")
+	}
 
 	trimmedName := strings.Join(parts, ".")
 	cacheKey := trimmedName
