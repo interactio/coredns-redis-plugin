@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: coredns-redis
+  description: Coredns with redis plugin
+  annotations:
+    github.com/project-slug: interactio/coredns-redis
+  tags:
+    - go
+    - backend
+    - infrastructure
+spec:
+  type: service
+  lifecycle: production
+  owner: team-infrastructure
+  system: media
